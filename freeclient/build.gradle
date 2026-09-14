@@ -1,0 +1,81 @@
+buildscript {
+    repositories {
+        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+        maven { url = 'https://maven.minecraftforge.net/' }
+    }
+    dependencies {
+        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
+    }
+}
+
+plugins { id 'java'; id 'net.minecraftforge.gradle' version '[6.0,6.2)' }
+
+apply plugin: 'org.spongepowered.mixin'
+
+version = '1.2.0'
+group = 'cn.blockforge.generated.mod7f2c695f'
+base { archivesName = 'freeclient' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    // BetterBrightnessSlider 需要将 OptionInstance$ValueSet / SliderableValueSet 设为 public
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+}
+
+mixin {
+    // freecam 配置使用静态 freeclient.refmap.json；其余三个配置共享 AP 生成的
+    // combined refmap（MixinGradle 的 add 只产出最后一个，共享同一文件最可靠）
+    add sourceSets.main, 'freeclient-extra.refmap.json'
+    config 'freeclient.mixins.json'
+    config 'freeclient-brightness.mixins.json'
+    config 'freeclient-screenshot.mixins.json'
+    config 'freeclient-fire.mixins.json'
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.minecraftforge.net/' }
+    maven { url = 'https://maven.neoforged.net/releases/' }
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.0'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // Embeddium（Rubidium 在 1.20.1 的延续）仅用于编译 SliderControlMixin。
+    // 运行时为可选依赖：装了 Embeddium 则其设置界面的亮度滑块获得扩展范围，
+    // 未安装则 @Pseudo mixin 静默跳过，不影响功能。
+    compileOnly fg.deobf("org.embeddedt:embeddium-1.20.1:0.3.31-beta.53+mc1.20.1")
+    // ScreenshotToClipboard 的 macOS 支持（Objective-C 桥），随 jar 一并打包
+    implementation 'ca.weblite:java-objc-bridge:1.1'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+processResources {
+    def props = [mod_id: 'freeclient', mod_name: 'FreeClient', mod_version: project.version,
+                 minecraft_version: '1.20.1', forge_version: '47.4.0']
+    inputs.properties props
+    filteringCharset = 'UTF-8'
+    filesMatching('META-INF/mods.toml') { expand props }
+}
+
+jar {
+    manifest {
+        // Forge 1.20.1 的 mixin 平台代理靠 MixinConfigs 清单属性注册 mixin 配置
+        attributes([
+            'MixinConfigs'          : 'freeclient.mixins.json,freeclient-brightness.mixins.json,freeclient-screenshot.mixins.json,freeclient-fire.mixins.json',
+            'Specification-Title'   : 'freeclient',
+            'Implementation-Title'  : 'freeclient-forge',
+            'Implementation-Version': project.version
+        ])
+    }
+    // 把 java-objc-bridge（macOS 剪贴板支持）的类打入产物，保持单 jar
+    from {
+        configurations.runtimeClasspath.findAll { it.name.startsWith('java-objc-bridge') }.collect { zipTree(it) }
+    }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+jar.finalizedBy('reobfJar')
