@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.thegameratort.fireoverlaycontroller.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "freeclient-extra.refmap.json",
+  "minVersion": "0.8",
+  "mixins": [],
+  "client": [
+    "InGameOverlayRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
